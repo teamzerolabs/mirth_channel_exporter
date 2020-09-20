@@ -27,7 +27,7 @@ To run it:
 | Flag | Description | Default |
 | ---- | ----------- | ------- |
 | log.level | Logging level | `info` |
-| web.listen-address | Address to listen on for telemetry | `:9140` |
+| web.listen-address | Address to listen on for telemetry | `:9141` |
 | web.telemetry-path | Path under which to expose metrics | `/metrics` |
 
 ## Env Variables
