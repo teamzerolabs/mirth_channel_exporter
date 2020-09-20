@@ -1,0 +1,14 @@
+[Unit]
+Description=mirth channel exporter
+After=network.target
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+WorkingDirectory=/mirth/mirthconnect
+EnvironmentFile=/etc/sysconfig/mirth_channel_exporter
+ExecStart=/mirth/mirthconnect/mirth_channel_exporter
+
+[Install]
+WantedBy=multi-user.target
