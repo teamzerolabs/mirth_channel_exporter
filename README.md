@@ -4,7 +4,7 @@ Export [Mirth Connect](https://en.wikipedia.org/wiki/Mirth_Connect) channel
 statistics to [Prometheus](https://prometheus.io).
 
 Metrics are retrieved using the Mirth Connect REST API. This has only been tested
-with Mirth Connect 3.7.1, but it should work with any 3.x version.
+with Mirth Connect 3.7.1, and it should work with version after 3.7.1.
 
 To run it:
 
