@@ -29,10 +29,13 @@ To run it:
 | log.level | Logging level | `info` |
 | web.listen-address | Address to listen on for telemetry | `:9141` |
 | web.telemetry-path | Path under which to expose metrics | `/metrics` |
+| config.file-path | Optional environment file path | `None` |
 
 ## Env Variables
 
-Use a .env file in the local folder, or /etc/sysconfig/mirth_channel_exporter
+Use a .env file in the local folder, /etc/sysconfig/mirth_channel_exporter, or
+use the --config.file-path command line flag to provide a path to your
+environment file
 ```
 MIRTH_ENDPOINT=https://mirth-connect.yourcompane.com
 MIRTH_USERNAME=admin

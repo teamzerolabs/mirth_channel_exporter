@@ -75,6 +75,8 @@ var (
 		"Address to listen on for telemetry")
 	metricsPath = flag.String("web.telemetry-path", "/metrics",
 		"Path under which to expose metrics")
+	configPath = flag.String("config.file-path", "",
+		"Path to environment file")
 
 	// Metrics
 	up = prometheus.NewDesc(
@@ -250,12 +252,22 @@ func (e *Exporter) HitMirthRestApisAndUpdateMetrics(channelIdNameMap map[string]
 }
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("Error loading .env file, assume env variables are set.")
-	}
-
 	flag.Parse()
+
+  configFile := *configPath
+  if configFile != "" {
+		log.Printf("Loading %s env file.\n", configFile)
+    err := godotenv.Load(configFile)
+	  if err != nil {
+		  log.Printf("Error loading %s env file.\n", configFile)
+	  }
+  } else {
+  	err := godotenv.Load()
+	  if err != nil {
+	  	log.Println("Error loading .env file, assume env variables are set.")
+	  }
+  }
+
 
 	mirthEndpoint := os.Getenv("MIRTH_ENDPOINT")
 	mirthUsername := os.Getenv("MIRTH_USERNAME")
@@ -263,6 +275,7 @@ func main() {
 
 	exporter := NewExporter(mirthEndpoint, mirthUsername, mirthPassword)
 	prometheus.MustRegister(exporter)
+  log.Printf("Using connection endpoint: %s", mirthEndpoint)
 
 	http.Handle(*metricsPath, promhttp.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
