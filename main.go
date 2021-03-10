@@ -75,7 +75,7 @@ var (
 		"Address to listen on for telemetry")
 	metricsPath = flag.String("web.telemetry-path", "/metrics",
 		"Path under which to expose metrics")
-	configPath = flag.String("config.file-path", "nofound.env",
+	configPath = flag.String("config.file-path", "",
 		"Path to environment file")
 
 	// Metrics
