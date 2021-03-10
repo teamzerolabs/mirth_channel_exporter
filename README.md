@@ -33,7 +33,9 @@ To run it:
 
 ## Env Variables
 
-Use a .env file in the local folder, or /etc/sysconfig/mirth_channel_exporter
+Use a .env file in the local folder, /etc/sysconfig/mirth_channel_exporter, or
+use the --config.file-path command line flag to provide a path to your
+environment file
 ```
 MIRTH_ENDPOINT=https://mirth-connect.yourcompane.com
 MIRTH_USERNAME=admin
