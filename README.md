@@ -29,7 +29,7 @@ To run it:
 | log.level | Logging level | `info` |
 | web.listen-address | Address to listen on for telemetry | `:9141` |
 | web.telemetry-path | Path under which to expose metrics | `/metrics` |
-| config.file-path | Optional environment file path | `` |
+| config.file-path | Optional environment file path | `None` |
 
 ## Env Variables
 
