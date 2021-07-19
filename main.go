@@ -33,6 +33,16 @@ type ChannelEntry struct {
 	Values  []string `xml:"string"`
 }
 
+type ChannelStatusMap struct {
+	XMLName xml.Name       `xml:"list"`
+	Channels []ChannelStatus `xml:"dashboardStatus"`
+}
+type ChannelStatus struct {
+  XMLName    xml.Name `xml:"dashboardStatus"`
+  ChannelId  string   `xml:"channelId"`
+  Name       string   `xml:"name"`
+  State      string   `xml:"state"`
+}
 /*
 <list>
   <channelStatistics>
@@ -63,6 +73,7 @@ type ChannelStats struct {
 
 const namespace = "mirth"
 const channelIdNameApi = "/api/channels/idsAndNames"
+const channelStatusesApi = "/api/channels/statuses"
 const channelStatsApi = "/api/channels/statistics"
 
 var (
@@ -81,6 +92,11 @@ var (
 		prometheus.BuildFQName(namespace, "", "up"),
 		"Was the last Mirth query successful.",
 		nil, nil,
+	)
+	channelStatuses = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "channel_status"),
+		"Status of all deployed channels",
+		[]string{"channel","status"}, nil,
 	)
 	messagesReceived = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "messages_received_total"),
@@ -123,6 +139,7 @@ func NewExporter(mirthEndpoint string, mirthUsername string, mirthPassword strin
 
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- up
+	ch <- channelStatuses
 	ch <- messagesReceived
 	ch <- messagesFiltered
 	ch <- messagesQueued
@@ -143,7 +160,9 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		up, prometheus.GaugeValue, 1,
 	)
 
-	e.HitMirthRestApisAndUpdateMetrics(channelIdNameMap, ch)
+	channelIdStatusMap, err := e.LoadChannelStatuses()
+
+	e.HitMirthRestApisAndUpdateMetrics(channelIdNameMap, channelIdStatusMap, ch)
 }
 
 func (e *Exporter) LoadChannelIdNameMap() (map[string]string, error) {
@@ -186,7 +205,46 @@ func (e *Exporter) LoadChannelIdNameMap() (map[string]string, error) {
 	return channelIdNameMap, nil
 }
 
-func (e *Exporter) HitMirthRestApisAndUpdateMetrics(channelIdNameMap map[string]string, ch chan<- prometheus.Metric) {
+func (e *Exporter) LoadChannelStatuses() (map[string]string, error) {
+	channelStatusMap := make(map[string]string)
+
+	req, err := http.NewRequest("GET", e.mirthEndpoint+channelStatusesApi, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// This one line implements the authentication required for the task.
+	req.SetBasicAuth(e.mirthUsername, e.mirthPassword)
+	// Make request and show output.
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+	// fmt.Println(string(body))
+
+	// we initialize our array
+	var channelStatusMapXML ChannelStatusMap
+	// we unmarshal our byteArray which contains our
+	// xmlFiles content into 'users' which we defined above
+	err = xml.Unmarshal(body, &channelStatusMapXML)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := 0; i < len(channelStatusMapXML.Channels); i++ {
+		channelStatusMap[channelStatusMapXML.Channels[i].ChannelId] = channelStatusMapXML.Channels[i].State
+	}
+
+	return channelStatusMap, nil
+}
+
+func (e *Exporter) HitMirthRestApisAndUpdateMetrics(channelIdNameMap map[string]string, channelIdStatusMap map[string]string, ch chan<- prometheus.Metric) {
 	// Load channel stats
 	req, err := http.NewRequest("GET", e.mirthEndpoint+channelStatsApi, nil)
 	if err != nil {
@@ -219,6 +277,11 @@ func (e *Exporter) HitMirthRestApisAndUpdateMetrics(channelIdNameMap map[string]
 
 	for i := 0; i < len(channelStatsList.Channels); i++ {
 		channelName := channelIdNameMap[channelStatsList.Channels[i].ChannelId]
+
+		channelStatus := channelIdStatusMap[channelStatsList.Channels[i].ChannelId]
+		ch <- prometheus.MustNewConstMetric(
+			channelStatuses, prometheus.GaugeValue, 1, channelName, channelStatus,
+		)
 
 		channelReceived, _ := strconv.ParseFloat(channelStatsList.Channels[i].Received, 64)
 		ch <- prometheus.MustNewConstMetric(
