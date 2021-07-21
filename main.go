@@ -202,7 +202,7 @@ func (e *Exporter) AssembleMetrics(channelStatusMap *ChannelStatusMap, ch chan<-
 
 	for _, channel := range channelStatusMap.Channels {
 		ch <- prometheus.MustNewConstMetric(
-			channelStatuses, prometheus.UntypedValue, 1, channel.Name, channel.State,
+			channelStatuses, prometheus.GaugeValue, 1, channel.Name, channel.State,
 		)
 
 		for _, entry := range channel.CurrentStatistics {
