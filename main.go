@@ -1,80 +1,63 @@
-// A minimal example of how to include Prometheus instrumentation.
 package main
 
 import (
 	"crypto/tls"
 	"encoding/xml"
 	"flag"
+	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
-
-	"github.com/joho/godotenv"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-/*
-<map>
-  <entry>
-    <string>101af57f-f26c-40d3-86a3-309e74b93512</string>
-    <string>Send-Email-Notification</string>
-  </entry>
-</map>
-*/
-type ChannelIdNameMap struct {
-	XMLName xml.Name       `xml:"map"`
-	Entries []ChannelEntry `xml:"entry"`
-}
-type ChannelEntry struct {
-	XMLName xml.Name `xml:"entry"`
-	Values  []string `xml:"string"`
-}
-
 type ChannelStatusMap struct {
-	XMLName xml.Name       `xml:"list"`
+	XMLName  xml.Name        `xml:"list"`
 	Channels []ChannelStatus `xml:"dashboardStatus"`
 }
 type ChannelStatus struct {
-  XMLName    xml.Name `xml:"dashboardStatus"`
-  ChannelId  string   `xml:"channelId"`
-  Name       string   `xml:"name"`
-  State      string   `xml:"state"`
+	XMLName            xml.Name                `xml:"dashboardStatus"`
+	ChannelId          string                  `xml:"channelId"`
+	Name               string                  `xml:"name"`
+	State              string                  `xml:"state"`
+	CurrentStatistics  ChannelStatusStatistics `xml:"statistics"`
+	LifetimeStatistics ChannelStatusStatistics `xml:"lifetimeStatistics"`
 }
-/*
-<list>
-  <channelStatistics>
-    <serverId>c5e6a736-0e88-46a7-bf32-5b4908c4d859</serverId>
-    <channelId>101af57f-f26c-40d3-86a3-309e74b93512</channelId>
-    <received>0</received>
-    <sent>0</sent>
-    <error>0</error>
-    <filtered>0</filtered>
-    <queued>0</queued>
-  </channelStatistics>
-</list>
-*/
-type ChannelStatsList struct {
-	XMLName  xml.Name       `xml:"list"`
-	Channels []ChannelStats `xml:"channelStatistics"`
+
+type ChannelStatusStatistics struct {
+	Entries []ChannelStatusStatisticsEntry `xml:"entry"`
+	/*
+		The stats returned from status API
+		   <statistics class="linked-hash-map">
+			  <entry>
+				<com.mirth.connect.donkey.model.message.Status>RECEIVED</com.mirth.connect.donkey.model.message.Status>
+				<long>70681</long>
+			  </entry>
+			  <entry>
+				<com.mirth.connect.donkey.model.message.Status>FILTERED</com.mirth.connect.donkey.model.message.Status>
+				<long>0</long>
+			  </entry>
+			  <entry>
+				<com.mirth.connect.donkey.model.message.Status>SENT</com.mirth.connect.donkey.model.message.Status>
+				<long>67139</long>
+			  </entry>
+			  <entry>
+				<com.mirth.connect.donkey.model.message.Status>ERROR</com.mirth.connect.donkey.model.message.Status>
+				<long>3542</long>
+			  </entry>
+			</statistics>
+	*/
 }
-type ChannelStats struct {
-	XMLName   xml.Name `xml:"channelStatistics"`
-	ServerId  string   `xml:"serverId"`
-	ChannelId string   `xml:"channelId"`
-	Received  string   `xml:"received"`
-	Sent      string   `xml:"sent"`
-	Error     string   `xml:"error"`
-	Filtered  string   `xml:"filtered"`
-	Queued    string   `xml:"queued"`
+
+type ChannelStatusStatisticsEntry struct {
+	Status       string  `xml:"com.mirth.connect.donkey.model.message.Status"`
+	MessageCount float64 `xml:"long"`
 }
 
 const namespace = "mirth"
-const channelIdNameApi = "/api/channels/idsAndNames"
 const channelStatusesApi = "/api/channels/statuses"
-const channelStatsApi = "/api/channels/statistics"
 
 var (
 	tr = &http.Transport{
@@ -96,32 +79,12 @@ var (
 	channelStatuses = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "channel_status"),
 		"Status of all deployed channels",
-		[]string{"channel","status"}, nil,
+		[]string{"channel", "status"}, nil,
 	)
-	messagesReceived = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "messages_received_total"),
-		"How many messages have been received (per channel).",
-		[]string{"channel"}, nil,
-	)
-	messagesFiltered = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "messages_filtered_total"),
-		"How many messages have been filtered (per channel).",
-		[]string{"channel"}, nil,
-	)
-	messagesQueued = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "messages_queued"),
-		"How many messages are currently queued (per channel).",
-		[]string{"channel"}, nil,
-	)
-	messagesSent = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "messages_sent_total"),
-		"How many messages have been sent (per channel).",
-		[]string{"channel"}, nil,
-	)
-	messagesErrored = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "messages_errored_total"),
-		"How many messages have errored (per channel).",
-		[]string{"channel"}, nil,
+	messageCounts = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "messages_total"),
+		"How many messages have been processed per channel and status.",
+		[]string{"channel", "status"}, nil,
 	)
 )
 
@@ -140,15 +103,11 @@ func NewExporter(mirthEndpoint string, mirthUsername string, mirthPassword strin
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- up
 	ch <- channelStatuses
-	ch <- messagesReceived
-	ch <- messagesFiltered
-	ch <- messagesQueued
-	ch <- messagesSent
-	ch <- messagesErrored
+	ch <- messageCounts
 }
 
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	channelIdNameMap, err := e.LoadChannelIdNameMap()
+	channelIdStatusMap, err := e.LoadChannelStatuses()
 	if err != nil {
 		ch <- prometheus.MustNewConstMetric(
 			up, prometheus.GaugeValue, 0,
@@ -160,54 +119,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		up, prometheus.GaugeValue, 1,
 	)
 
-	channelIdStatusMap, err := e.LoadChannelStatuses()
-
-	e.HitMirthRestApisAndUpdateMetrics(channelIdNameMap, channelIdStatusMap, ch)
+	e.AssembleMetrics(channelIdStatusMap, ch)
 }
 
-func (e *Exporter) LoadChannelIdNameMap() (map[string]string, error) {
-	// Create the map of channel id to names
-	channelIdNameMap := make(map[string]string)
-
-	req, err := http.NewRequest("GET", e.mirthEndpoint+channelIdNameApi, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// This one line implements the authentication required for the task.
-	req.SetBasicAuth(e.mirthUsername, e.mirthPassword)
-	// Make request and show output.
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-	// fmt.Println(string(body))
-
-	// we initialize our array
-	var channelIdNameMapXML ChannelIdNameMap
-	// we unmarshal our byteArray which contains our
-	// xmlFiles content into 'users' which we defined above
-	err = xml.Unmarshal(body, &channelIdNameMapXML)
-	if err != nil {
-		return nil, err
-	}
-
-	for i := 0; i < len(channelIdNameMapXML.Entries); i++ {
-		channelIdNameMap[channelIdNameMapXML.Entries[i].Values[0]] = channelIdNameMapXML.Entries[i].Values[1]
-	}
-
-	return channelIdNameMap, nil
-}
-
-func (e *Exporter) LoadChannelStatuses() (map[string]string, error) {
-	channelStatusMap := make(map[string]string)
-
+func (e *Exporter) LoadChannelStatuses() (*ChannelStatusMap, error) {
 	req, err := http.NewRequest("GET", e.mirthEndpoint+channelStatusesApi, nil)
 	if err != nil {
 		return nil, err
@@ -228,85 +143,34 @@ func (e *Exporter) LoadChannelStatuses() (map[string]string, error) {
 	}
 	// fmt.Println(string(body))
 
-	// we initialize our array
-	var channelStatusMapXML ChannelStatusMap
-	// we unmarshal our byteArray which contains our
-	// xmlFiles content into 'users' which we defined above
-	err = xml.Unmarshal(body, &channelStatusMapXML)
+	// initialize map variable
+	var channelStatusMap ChannelStatusMap
+	// unmarshal body byteArray into the ChannelStatusMap struct
+	err = xml.Unmarshal(body, &channelStatusMap)
 	if err != nil {
 		return nil, err
 	}
 
-	for i := 0; i < len(channelStatusMapXML.Channels); i++ {
-		channelStatusMap[channelStatusMapXML.Channels[i].ChannelId] = channelStatusMapXML.Channels[i].State
-	}
-
-	return channelStatusMap, nil
+	return &channelStatusMap, nil
 }
 
-func (e *Exporter) HitMirthRestApisAndUpdateMetrics(channelIdNameMap map[string]string, channelIdStatusMap map[string]string, ch chan<- prometheus.Metric) {
-	// Load channel stats
-	req, err := http.NewRequest("GET", e.mirthEndpoint+channelStatsApi, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
+func (e *Exporter) AssembleMetrics(channelStatusMap *ChannelStatusMap, ch chan<- prometheus.Metric) {
 
-	// This one line implements the authentication required for the task.
-	req.SetBasicAuth(e.mirthUsername, e.mirthPassword)
-	// Make request and show output.
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Fatal(err)
-	}
+	for i := 0; i < len(channelStatusMap.Channels); i++ {
+		channelName := channelStatusMap.Channels[i].Name
 
-	body, err := ioutil.ReadAll(resp.Body)
-	resp.Body.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
-	// fmt.Println(string(body))
-
-	// we initialize our array
-	var channelStatsList ChannelStatsList
-	// we unmarshal our byteArray which contains our
-	// xmlFiles content into 'users' which we defined above
-	err = xml.Unmarshal(body, &channelStatsList)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for i := 0; i < len(channelStatsList.Channels); i++ {
-		channelName := channelIdNameMap[channelStatsList.Channels[i].ChannelId]
-
-		channelStatus := channelIdStatusMap[channelStatsList.Channels[i].ChannelId]
+		channelStatus := channelStatusMap.Channels[i].State
 		ch <- prometheus.MustNewConstMetric(
-			channelStatuses, prometheus.GaugeValue, 1, channelName, channelStatus,
+			channelStatuses, prometheus.UntypedValue, 1, channelName, channelStatus,
 		)
 
-		channelReceived, _ := strconv.ParseFloat(channelStatsList.Channels[i].Received, 64)
-		ch <- prometheus.MustNewConstMetric(
-			messagesReceived, prometheus.GaugeValue, channelReceived, channelName,
-		)
+		for j := 0; j < len(channelStatusMap.Channels[i].CurrentStatistics.Entries); j++ {
+			entry := channelStatusMap.Channels[i].CurrentStatistics.Entries[j]
 
-		channelSent, _ := strconv.ParseFloat(channelStatsList.Channels[i].Sent, 64)
-		ch <- prometheus.MustNewConstMetric(
-			messagesSent, prometheus.GaugeValue, channelSent, channelName,
-		)
-
-		channelError, _ := strconv.ParseFloat(channelStatsList.Channels[i].Error, 64)
-		ch <- prometheus.MustNewConstMetric(
-			messagesErrored, prometheus.GaugeValue, channelError, channelName,
-		)
-
-		channelFiltered, _ := strconv.ParseFloat(channelStatsList.Channels[i].Filtered, 64)
-		ch <- prometheus.MustNewConstMetric(
-			messagesFiltered, prometheus.GaugeValue, channelFiltered, channelName,
-		)
-
-		channelQueued, _ := strconv.ParseFloat(channelStatsList.Channels[i].Queued, 64)
-		ch <- prometheus.MustNewConstMetric(
-			messagesQueued, prometheus.GaugeValue, channelQueued, channelName,
-		)
+			ch <- prometheus.MustNewConstMetric(
+				messageCounts, prometheus.CounterValue, entry.MessageCount, channelName, entry.Status,
+			)
+		}
 	}
 
 	log.Println("Endpoint scraped")
@@ -337,5 +201,6 @@ func main() {
              </body>
              </html>`))
 	})
+	log.Println("Listening on ", *listenAddress)
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
