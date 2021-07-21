@@ -26,24 +26,24 @@ type ChannelStatus struct {
 	LifetimeStatistics []ChannelStatusStatisticsEntry `xml:"lifetimeStatistics>entry"`
 
 	/*
-		   <statistics class="linked-hash-map">
-			  <entry>
-				<com.mirth.connect.donkey.model.message.Status>RECEIVED</com.mirth.connect.donkey.model.message.Status>
-				<long>70681</long>
-			  </entry>
-			  <entry>
-				<com.mirth.connect.donkey.model.message.Status>FILTERED</com.mirth.connect.donkey.model.message.Status>
-				<long>0</long>
-			  </entry>
-			  <entry>
-				<com.mirth.connect.donkey.model.message.Status>SENT</com.mirth.connect.donkey.model.message.Status>
-				<long>67139</long>
-			  </entry>
-			  <entry>
-				<com.mirth.connect.donkey.model.message.Status>ERROR</com.mirth.connect.donkey.model.message.Status>
-				<long>3542</long>
-			  </entry>
-			</statistics>
+		<statistics class="linked-hash-map">
+		  <entry>
+			<com.mirth.connect.donkey.model.message.Status>RECEIVED</com.mirth.connect.donkey.model.message.Status>
+			<long>70681</long>
+		  </entry>
+		  <entry>
+			<com.mirth.connect.donkey.model.message.Status>FILTERED</com.mirth.connect.donkey.model.message.Status>
+			<long>0</long>
+		  </entry>
+		  <entry>
+			<com.mirth.connect.donkey.model.message.Status>SENT</com.mirth.connect.donkey.model.message.Status>
+			<long>67139</long>
+		  </entry>
+		  <entry>
+			<com.mirth.connect.donkey.model.message.Status>ERROR</com.mirth.connect.donkey.model.message.Status>
+			<long>3542</long>
+		  </entry>
+		</statistics>
 	*/
 }
 
@@ -77,10 +77,30 @@ var (
 		"Status of all deployed channels",
 		[]string{"channel", "status"}, nil,
 	)
-	messageCounts = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "messages_total"),
-		"How many messages have been processed per channel and status.",
-		[]string{"channel", "status"}, nil,
+	messagesReceived = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "messages_received_total"),
+		"How many messages have been received (per channel).",
+		[]string{"channel"}, nil,
+	)
+	messagesFiltered = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "messages_filtered_total"),
+		"How many messages have been filtered (per channel).",
+		[]string{"channel"}, nil,
+	)
+	messagesQueued = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "messages_queued"),
+		"How many messages are currently queued (per channel).",
+		[]string{"channel"}, nil,
+	)
+	messagesSent = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "messages_sent_total"),
+		"How many messages have been sent (per channel).",
+		[]string{"channel"}, nil,
+	)
+	messagesErrored = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "messages_errored_total"),
+		"How many messages have errored (per channel).",
+		[]string{"channel"}, nil,
 	)
 )
 
@@ -99,7 +119,11 @@ func NewExporter(mirthEndpoint string, mirthUsername string, mirthPassword strin
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- up
 	ch <- channelStatuses
-	ch <- messageCounts
+	ch <- messagesReceived
+	ch <- messagesFiltered
+	ch <- messagesQueued
+	ch <- messagesSent
+	ch <- messagesErrored
 }
 
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
@@ -150,6 +174,22 @@ func (e *Exporter) LoadChannelStatuses() (*ChannelStatusMap, error) {
 	return &channelStatusMap, nil
 }
 
+func pickMetric(status string) *prometheus.Desc {
+	switch status {
+	case "RECEIVED":
+		return messagesReceived
+	case "FILTERED":
+		return messagesFiltered
+	case "SENT":
+		return messagesSent
+	case "QUEUED":
+		return messagesQueued
+	case "ERROR":
+		return messagesErrored
+	}
+	return nil
+}
+
 func (e *Exporter) AssembleMetrics(channelStatusMap *ChannelStatusMap, ch chan<- prometheus.Metric) {
 
 	for _, channel := range channelStatusMap.Channels {
@@ -158,9 +198,12 @@ func (e *Exporter) AssembleMetrics(channelStatusMap *ChannelStatusMap, ch chan<-
 		)
 
 		for _, entry := range channel.CurrentStatistics {
-			ch <- prometheus.MustNewConstMetric(
-				messageCounts, prometheus.CounterValue, entry.MessageCount, channel.Name, entry.Status,
-			)
+			metric := pickMetric(entry.Status)
+			if metric != nil {
+				ch <- prometheus.MustNewConstMetric(
+					metric, prometheus.CounterValue, entry.MessageCount, channel.Name,
+				)
+			}
 		}
 	}
 
