@@ -209,7 +209,7 @@ func (e *Exporter) AssembleMetrics(channelStatusMap *ChannelStatusMap, ch chan<-
 			metric := pickMetric(entry.Status)
 			if metric != nil {
 				ch <- prometheus.MustNewConstMetric(
-					metric, prometheus.CounterValue, entry.MessageCount, channel.Name,
+					metric, prometheus.GaugeValue, entry.MessageCount, channel.Name,
 				)
 			}
 		}
