@@ -102,6 +102,11 @@ var (
 		"How many messages have errored (per channel).",
 		[]string{"channel"}, nil,
 	)
+	requestDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    prometheus.BuildFQName(namespace, "", "request_duration"),
+		Help:    "Histogram for the runtime of the metric pull from Mirth.",
+		Buckets: prometheus.LinearBuckets(0.1, 0.1, 20),
+	})
 )
 
 type Exporter struct {
@@ -143,6 +148,8 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (e *Exporter) LoadChannelStatuses() (*ChannelStatusMap, error) {
+	timer := prometheus.NewTimer(requestDuration)
+	defer timer.ObserveDuration()
 	req, err := http.NewRequest("GET", e.mirthEndpoint+channelStatusesApi, nil)
 	if err != nil {
 		return nil, err
@@ -191,6 +198,7 @@ func pickMetric(status string) *prometheus.Desc {
 }
 
 func (e *Exporter) AssembleMetrics(channelStatusMap *ChannelStatusMap, ch chan<- prometheus.Metric) {
+	ch <- requestDuration
 
 	for _, channel := range channelStatusMap.Channels {
 		ch <- prometheus.MustNewConstMetric(
