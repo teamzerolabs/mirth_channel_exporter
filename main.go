@@ -24,12 +24,8 @@ type ChannelStatus struct {
 	State              string                         `xml:"state"`
 	CurrentStatistics  []ChannelStatusStatisticsEntry `xml:"statistics>entry"`
 	LifetimeStatistics []ChannelStatusStatisticsEntry `xml:"lifetimeStatistics>entry"`
-}
 
-type ChannelStatusStatistics struct {
-	Entries []ChannelStatusStatisticsEntry `xml:"entry"`
 	/*
-		The stats returned from status API
 		   <statistics class="linked-hash-map">
 			  <entry>
 				<com.mirth.connect.donkey.model.message.Status>RECEIVED</com.mirth.connect.donkey.model.message.Status>
