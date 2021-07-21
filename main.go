@@ -18,12 +18,12 @@ type ChannelStatusMap struct {
 	Channels []ChannelStatus `xml:"dashboardStatus"`
 }
 type ChannelStatus struct {
-	XMLName            xml.Name                `xml:"dashboardStatus"`
-	ChannelId          string                  `xml:"channelId"`
-	Name               string                  `xml:"name"`
-	State              string                  `xml:"state"`
-	CurrentStatistics  ChannelStatusStatistics `xml:"statistics"`
-	LifetimeStatistics ChannelStatusStatistics `xml:"lifetimeStatistics"`
+	XMLName            xml.Name                       `xml:"dashboardStatus"`
+	ChannelId          string                         `xml:"channelId"`
+	Name               string                         `xml:"name"`
+	State              string                         `xml:"state"`
+	CurrentStatistics  []ChannelStatusStatisticsEntry `xml:"statistics>entry"`
+	LifetimeStatistics []ChannelStatusStatisticsEntry `xml:"lifetimeStatistics>entry"`
 }
 
 type ChannelStatusStatistics struct {
@@ -156,19 +156,14 @@ func (e *Exporter) LoadChannelStatuses() (*ChannelStatusMap, error) {
 
 func (e *Exporter) AssembleMetrics(channelStatusMap *ChannelStatusMap, ch chan<- prometheus.Metric) {
 
-	for i := 0; i < len(channelStatusMap.Channels); i++ {
-		channelName := channelStatusMap.Channels[i].Name
-
-		channelStatus := channelStatusMap.Channels[i].State
+	for _, channel := range channelStatusMap.Channels {
 		ch <- prometheus.MustNewConstMetric(
-			channelStatuses, prometheus.UntypedValue, 1, channelName, channelStatus,
+			channelStatuses, prometheus.UntypedValue, 1, channel.Name, channel.State,
 		)
 
-		for j := 0; j < len(channelStatusMap.Channels[i].CurrentStatistics.Entries); j++ {
-			entry := channelStatusMap.Channels[i].CurrentStatistics.Entries[j]
-
+		for _, entry := range channel.CurrentStatistics {
 			ch <- prometheus.MustNewConstMetric(
-				messageCounts, prometheus.CounterValue, entry.MessageCount, channelName, entry.Status,
+				messageCounts, prometheus.CounterValue, entry.MessageCount, channel.Name, entry.Status,
 			)
 		}
 	}
