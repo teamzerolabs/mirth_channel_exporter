@@ -10,6 +10,20 @@ To run it:
     go build
     ./mirth_channel_exporter [flags]
 
+or via Docker compose:
+```yaml
+services:
+  mirth_exporter:
+    image: ghcr.io/waytohealth/mirth_channel_exporter:latest
+    restart: always
+    ports:
+      - "9141:9141"
+    environment:
+      - MIRTH_ENDPOINT=${mirth_url}
+      - MIRTH_USERNAME=${mirth_username}
+      - MIRTH_PASSWORD=${mirth_password}
+```
+
 ## Exported Metrics
 | Metric | Description | Labels |
 | ------ | ------- | ------ |
