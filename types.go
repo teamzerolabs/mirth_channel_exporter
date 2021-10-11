@@ -3,12 +3,13 @@ package main
 import "encoding/xml"
 
 type ChannelStatus struct {
-	XMLName            xml.Name                       `xml:"dashboardStatus"`
-	ChannelId          string                         `xml:"channelId"`
-	Name               string                         `xml:"name"`
-	State              string                         `xml:"state"`
-	CurrentStatistics  []ChannelStatusStatisticsEntry `xml:"statistics>entry"`
-	LifetimeStatistics []ChannelStatusStatisticsEntry `xml:"lifetimeStatistics>entry"`
+	XMLName               xml.Name                       `xml:"dashboardStatus"`
+	ChannelId             string                         `xml:"channelId"`
+	Name                  string                         `xml:"name"`
+	State                 string                         `xml:"state"`
+	DeployedRevisionDelta float64                        `xml:"deployedRevisionDelta"`
+	CurrentStatistics     []ChannelStatusStatisticsEntry `xml:"statistics>entry"`
+	LifetimeStatistics    []ChannelStatusStatisticsEntry `xml:"lifetimeStatistics>entry"`
 
 	/*
 		<statistics class="linked-hash-map">
@@ -41,4 +42,3 @@ type ChannelStatusStatisticsEntry struct {
 	Status       string  `xml:"com.mirth.connect.donkey.model.message.Status"`
 	MessageCount float64 `xml:"long"`
 }
-
