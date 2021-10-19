@@ -32,7 +32,7 @@ var (
 	)
 
 	channelDeployedRevisionDeltas = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "channel_undeployed_revisions"),
+		prometheus.BuildFQName(namespace, "", "undeployed_revisions"),
 		"channel.DeployedRevisionDelta of all deployed channels",
 		[]string{"channel"}, nil,
 	)
