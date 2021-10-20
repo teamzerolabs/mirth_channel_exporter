@@ -31,6 +31,12 @@ var (
 		[]string{"channel", "status"}, nil,
 	)
 
+	channelDeployedRevisionDeltas = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "undeployed_revisions"),
+		"channel.DeployedRevisionDelta of all deployed channels",
+		[]string{"channel"}, nil,
+	)
+
 	messagesReceived = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "messages_received_total"),
 		"How many messages have been received (per channel).",
@@ -124,6 +130,10 @@ func (e *Exporter) AssembleMetrics(channelStatusMap *ChannelStatusMap, ch chan<-
 	for _, channel := range channelStatusMap.Channels {
 		ch <- prometheus.MustNewConstMetric(
 			channelStatuses, prometheus.GaugeValue, 1, channel.Name, channel.State,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			channelDeployedRevisionDeltas, prometheus.GaugeValue, channel.DeployedRevisionDelta, channel.Name,
 		)
 
 		for _, entry := range channel.CurrentStatistics {

@@ -35,6 +35,7 @@ services:
 | mirth_messages_queued | How many messages are currently queued | channel |
 | mirth_messages_sent_total  | How many messages have been sent | channel |
 | mirth_messages_errored_total  | How many messages have errored | channel |
+| mirth_undeployed_revisions  |  How many channel revisions have not been deployed | channel | 
 
 ```
 # HELP mirth_channel_status
@@ -79,6 +80,10 @@ mirth_messages_sent_total{channel="bar"} 964
 # HELP mirth_up Was the last Mirth query successful.
 # TYPE mirth_up gauge
 mirth_up 1
+
+# HELP mirth_undeployed_revisions channel.DeployedRevisionDelta of all deployed channels
+# TYPE mirth_undeployed_revisions gauge
+mirth_undeployed_revisions{channel="foo"} 13
 ```
 
 ## Flags
