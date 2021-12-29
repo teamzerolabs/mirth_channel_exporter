@@ -82,6 +82,7 @@ func (e *Exporter) LoadChannelStatuses() (*ChannelStatusMap, error) {
 		return nil, err
 	}
 
+	req.Header.Add("X-Requested-With", "mirth_channel_exporter")
 	// This one line implements the authentication required for the task.
 	req.SetBasicAuth(e.mirthUsername, e.mirthPassword)
 	// Make request and show output.
