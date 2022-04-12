@@ -156,6 +156,8 @@ func (e *Exporter) LoadChannelIdNameMap() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Mirth versions >= 3.12 require the X-Requested-With header
 	req.Header.Add("X-Requested-With", "XMLHttpRequest")
 
 	// This one line implements the authentication required for the task.
@@ -195,6 +197,8 @@ func (e *Exporter) HitMirthRestApisAndUpdateMetrics(channelIdNameMap map[string]
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Mirth versions >= 3.12 require the X-Requested-With header
 	req.Header.Add("X-Requested-With", "XMLHttpRequest")
 
 	// This one line implements the authentication required for the task.
