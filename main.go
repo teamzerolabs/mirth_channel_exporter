@@ -156,6 +156,7 @@ func (e *Exporter) LoadChannelIdNameMap() (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Add("X-Requested-With", "XMLHttpRequest")
 
 	// This one line implements the authentication required for the task.
 	req.SetBasicAuth(e.mirthUsername, e.mirthPassword)
@@ -194,6 +195,7 @@ func (e *Exporter) HitMirthRestApisAndUpdateMetrics(channelIdNameMap map[string]
 	if err != nil {
 		log.Fatal(err)
 	}
+	req.Header.Add("X-Requested-With", "XMLHttpRequest")
 
 	// This one line implements the authentication required for the task.
 	req.SetBasicAuth(e.mirthUsername, e.mirthPassword)
