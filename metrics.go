@@ -11,6 +11,7 @@ import (
 
 const namespace = "mirth"
 const channelStatusesApi = "/api/channels/statuses"
+const versionApi = "/api/server/version"
 
 var (
 	tr = &http.Transport{
@@ -72,6 +73,11 @@ var (
 		Help:    "Histogram for the runtime of the metric pull from Mirth.",
 		Buckets: prometheus.LinearBuckets(0.1, 0.1, 20),
 	})
+
+	mirthVersion = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "info"),
+		"Version information about this Mirth instance.", []string{"version"}, nil,
+	)
 )
 
 func (e *Exporter) LoadChannelStatuses() (*ChannelStatusMap, error) {
@@ -107,6 +113,33 @@ func (e *Exporter) LoadChannelStatuses() (*ChannelStatusMap, error) {
 	}
 
 	return &channelStatusMap, nil
+}
+
+func (e *Exporter) GetMirthVersion() string {
+	timer := prometheus.NewTimer(requestDuration)
+	defer timer.ObserveDuration()
+	req, err := http.NewRequest("GET", e.mirthEndpoint+versionApi, nil)
+	const errorString = "error"
+	if err != nil {
+		return errorString
+	}
+
+	req.Header.Add("X-Requested-With", "mirth_channel_exporter")
+	// This one line implements the authentication required for the task.
+	req.SetBasicAuth(e.mirthUsername, e.mirthPassword)
+	// Make request and show output.
+	resp, err := client.Do(req)
+	if err != nil {
+		return errorString
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	var result string = string(body)
+	resp.Body.Close()
+	if err != nil {
+		return errorString
+	}
+	return result
 }
 
 func pickMetric(status string) *prometheus.Desc {
@@ -186,4 +219,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	)
 
 	e.AssembleMetrics(channelIdStatusMap, ch)
+
+	versionString := e.GetMirthVersion()
+	ch <- prometheus.MustNewConstMetric(
+		mirthVersion, prometheus.GaugeValue, 1, versionString,
+	)
+
 }
