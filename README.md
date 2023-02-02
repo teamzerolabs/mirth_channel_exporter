@@ -25,17 +25,18 @@ services:
 ```
 
 ## Exported Metrics
-| Metric | Description | Labels |
-| ------ | ------- | ------ |
-| mirth_up | Was the last Mirth CLI query successful | |
-| mirth_request_duration | Histogram for the runtime of the metric pull from Mirth | |
-| mirth_channel_status | Status of all deployed channels | channel, status |
-| mirth_messages_received_total | How many messages have been received | channel |
-| mirth_messages_filtered_total  | How many messages have been filtered | channel |
-| mirth_messages_queued | How many messages are currently queued | channel |
-| mirth_messages_sent_total  | How many messages have been sent | channel |
-| mirth_messages_errored_total  | How many messages have errored | channel |
-| mirth_undeployed_revisions  |  How many channel revisions have not been deployed | channel | 
+| Metric                        | Description                                             | Labels          |
+|-------------------------------|---------------------------------------------------------|-----------------|
+| mirth_up                      | Was the last Mirth CLI query successful                 |                 |
+| mirth_info                    | Version information                                     | version         |
+| mirth_request_duration        | Histogram for the runtime of the metric pull from Mirth |                 |
+| mirth_channel_status          | Status of all deployed channels                         | channel, status |
+| mirth_messages_received_total | How many messages have been received                    | channel         |
+| mirth_messages_filtered_total | How many messages have been filtered                    | channel         |
+| mirth_messages_queued         | How many messages are currently queued                  | channel         |
+| mirth_messages_sent_total     | How many messages have been sent                        | channel         |
+| mirth_messages_errored_total  | How many messages have errored                          | channel         |
+| mirth_undeployed_revisions    | How many channel revisions have not been deployed       | channel         | 
 
 ```
 # HELP mirth_channel_status
@@ -80,6 +81,10 @@ mirth_messages_sent_total{channel="bar"} 964
 # HELP mirth_up Was the last Mirth query successful.
 # TYPE mirth_up gauge
 mirth_up 1
+
+# HELP mirth_info Version information about this Mirth instance.
+# TYPE mirth_info gauge
+mirth_info{version="3.8.1"} 1
 
 # HELP mirth_undeployed_revisions channel.DeployedRevisionDelta of all deployed channels
 # TYPE mirth_undeployed_revisions gauge
