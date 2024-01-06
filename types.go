@@ -2,6 +2,33 @@ package main
 
 import "encoding/xml"
 
+type ChannelStatistics struct {
+	XMLName   xml.Name `xml:"channelStatistics"`
+	ServerId  string   `xml:"ServerId"`
+	ChannelId string   `xml:"channelId"`
+	Received  float64  `xml:"received"`
+	Sent      float64  `xml:"sent"`
+	Error     float64  `xml:"error"`
+	Queued    float64  `xml:"queued"`
+}
+
+/*
+  <channelStatistics>
+    <serverId>6d555cac-1671-481f-abae-7e1e791eb2d5</serverId>
+    <channelId>d7ecfa9c-4f73-4280-b8bc-ced3a154b1ea</channelId>
+    <received>39</received>
+    <sent>39</sent>
+    <error>0</error>
+    <filtered>0</filtered>
+    <queued>0</queued>
+  </channelStatistics>
+*/
+
+type ChannelStatisticsMap struct {
+	XMLName  xml.Name            `xml:"list"`
+	Channels []ChannelStatistics `xml:"channelStatistics"`
+}
+
 type ChannelStatus struct {
 	XMLName               xml.Name                       `xml:"dashboardStatus"`
 	ChannelId             string                         `xml:"channelId"`

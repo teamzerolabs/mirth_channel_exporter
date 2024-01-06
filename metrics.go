@@ -11,6 +11,7 @@ import (
 
 const namespace = "mirth"
 const channelStatusesApi = "/api/channels/statuses"
+const channelStatisticsApi = "/api/channels/statistics"
 const versionApi = "/api/server/version"
 
 var (
@@ -79,6 +80,40 @@ var (
 		"Version information about this Mirth instance.", []string{"version"}, nil,
 	)
 )
+
+func (e *Exporter) LoadChannelStatistics() (*ChannelStatisticsMap, error) {
+	timer := prometheus.NewTimer(requestDuration)
+	defer timer.ObserveDuration()
+	req, err := http.NewRequest("GET", e.mirthEndpoint+channelStatisticsApi, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("X-Requested-With", "mirth_channel_exporter")
+	// This one line implements the authentication required for the task.
+	req.SetBasicAuth(e.mirthUsername, e.mirthPassword)
+	// Make request and show output.
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	// initialize map variable
+	var channelStatisticsMap ChannelStatisticsMap
+	// unmarshal body byteArray into the ChannelStatusMap struct
+	err = xml.Unmarshal(body, &channelStatisticsMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return &channelStatisticsMap, nil
+}
 
 func (e *Exporter) LoadChannelStatuses() (*ChannelStatusMap, error) {
 	timer := prometheus.NewTimer(requestDuration)
@@ -158,7 +193,16 @@ func pickMetric(status string) *prometheus.Desc {
 	return nil
 }
 
-func (e *Exporter) AssembleMetrics(channelStatusMap *ChannelStatusMap, ch chan<- prometheus.Metric) {
+func FindQueuedValue(channelStatisticsMap *ChannelStatisticsMap, x string) float64 {
+	for _, channel := range channelStatisticsMap.Channels {
+		if x == channel.ChannelId {
+			return channel.Queued
+		}
+	}
+	return 0
+}
+
+func (e *Exporter) AssembleMetrics(channelStatusMap *ChannelStatusMap, channelStatisticsMap *ChannelStatisticsMap, ch chan<- prometheus.Metric) {
 	ch <- requestDuration
 
 	for _, channel := range channelStatusMap.Channels {
@@ -178,6 +222,11 @@ func (e *Exporter) AssembleMetrics(channelStatusMap *ChannelStatusMap, ch chan<-
 				)
 			}
 		}
+
+		queuedMetricValue := FindQueuedValue(channelStatisticsMap, channel.ChannelId)
+		ch <- prometheus.MustNewConstMetric(
+			pickMetric("QUEUED"), prometheus.GaugeValue, queuedMetricValue, channel.Name,
+		)
 	}
 
 	log.Println("Endpoint scraped")
@@ -214,15 +263,20 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		log.Println(err)
 		return
 	}
-	ch <- prometheus.MustNewConstMetric(
-		up, prometheus.GaugeValue, 1,
-	)
 
-	e.AssembleMetrics(channelIdStatusMap, ch)
+	channelIdStatisticsMap, err := e.LoadChannelStatistics()
+	if err != nil {
+		ch <- prometheus.MustNewConstMetric(
+			up, prometheus.GaugeValue, 0,
+		)
+		log.Println(err)
+		return
+	}
+
+	e.AssembleMetrics(channelIdStatusMap, channelIdStatisticsMap, ch)
 
 	versionString := e.GetMirthVersion()
 	ch <- prometheus.MustNewConstMetric(
 		mirthVersion, prometheus.GaugeValue, 1, versionString,
 	)
-
 }
